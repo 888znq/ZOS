@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Fastest Browser (Web Edition)</title>
+<title>Fastest Browser (Web Edition) - Cloud Sync</title>
 <style>
   /* ===================================================================
      Base tokens — ported 1:1 from the simulation UI
@@ -73,8 +73,6 @@
   .focus-catcher { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
   .pane-active .focus-catcher { display: none; } 
 
-  .empty-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255,255,255,0.25); font-size: 13px; text-align: center; }
-
   #exit-fullscreen-btn {
     position: absolute; top: 14px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
     background: #CC18181A; border: 1px solid rgba(255,255,255,0.2); display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 200; padding: 0;
@@ -101,21 +99,6 @@
   .folder-btn:active, .folder-btn.active { background: #ffffff; border-color: #ffffff; color: var(--bar-bg); }
   .folder-btn.has-bookmarks::after { content: ""; position: absolute; bottom: -1px; right: -1px; width: 4px; height: 4px; border-radius: 50%; background: #ffffff; border: 1px solid var(--bar-bg); }
 
-  #account-switcher { position: relative; display: flex; align-items: center; }
-  #account-dropdown-btn { appearance: none; background: var(--bar-bg); border: 1px solid var(--chip-border); color: var(--text); font-size: 11px; font-family: inherit; border-radius: 5px; height: 21px; padding: 0 6px; display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; transition: 0.1s; }
-  #account-dropdown-btn:active, #account-dropdown-btn.open { background: #ffffff; color: var(--bar-bg); border-color: #ffffff; }
-  #account-dropdown-label { max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
-
-  .account-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; color: #ffffff; }
-  .account-item:active { background: rgba(255, 255, 255, 0.05); }
-  .account-item-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .account-item-close { color: var(--danger); font-size: 12px; cursor: pointer; padding: 2px; background: none; border: none; }
-  .account-menu-empty { padding: 8px; text-align: center; color: var(--text-dim); font-size: 11px; }
-
-  #tab-name-input-container { display: none; align-items: center; gap: 2px; }
-  .tab-name-input { width: 90px; height: 21px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--chip-border); border-radius: 5px; color: var(--text); font-size: 10px; padding: 0 6px; outline: none; font-family: inherit; box-sizing: border-box; }
-  .tab-name-input:focus { border-color: var(--accent); }
-
   #toolbar-row { display: flex; align-items: center; gap: 2px; padding: 0 4px; flex: 0 0 31.5px; min-height: 0; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
   #toolbar-row::-webkit-scrollbar { display: none; }
 
@@ -123,6 +106,9 @@
   .icon-btn:active:not(:disabled) { background: #ffffff; color: var(--bar-bg); border-color: #ffffff; }
   .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
   .icon-btn.danger:active:not(:disabled) { background: #ffffff; border-color: #ffffff; color: var(--bar-bg); }
+
+  /* Expanded navigation buttons */
+  .nav-btn { width: 40px; max-width: 40px; min-width: 40px; font-size: 13px; }
 
   #btn-fullscreen { display: flex; } 
   #address-wrap { position: relative; flex: 1 1 auto; min-width: 90px; }
@@ -140,13 +126,10 @@
   #downloads-badge { position: absolute; top: -2px; right: -2px; background: #ffffff; color: var(--bar-bg); font-size: 7px; font-weight: 700; border-radius: 6px; min-width: 11px; height: 11px; line-height: 11px; text-align: center; padding: 0 2px; display: none; pointer-events: none; }
 
   /* Modals */
-  #folder-panel, #downloads-panel, #account-dropdown-menu { position: absolute; bottom: 70px; max-height: 60vh; background: var(--bar-bg); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); display: none; flex-direction: column; padding: 6px; z-index: 90; box-sizing: border-box; }
-  #folder-panel, #account-dropdown-menu { left: 8px; right: auto; }
-  #downloads-panel { right: 8px; left: auto; }
-  #folder-panel { width: 220px; max-width: calc(100% - 16px); padding: 0; }
-  #account-dropdown-menu { min-width: 160px; overflow-y: auto; z-index: 100; }
-  #downloads-panel { overflow-y: auto; width: 250px; }
-  #folder-panel.open, #downloads-panel.open, #account-dropdown-menu.open { display: flex; }
+  #folder-panel, #downloads-panel { position: absolute; bottom: 70px; max-height: 60vh; background: var(--bar-bg); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); display: none; flex-direction: column; padding: 6px; z-index: 90; box-sizing: border-box; }
+  #folder-panel { left: 8px; right: auto; width: 220px; max-width: calc(100% - 16px); padding: 0; }
+  #downloads-panel { right: 8px; left: auto; overflow-y: auto; width: 250px; }
+  #folder-panel.open, #downloads-panel.open { display: flex; }
 
   .fp-header { display: flex; align-items: center; justify-content: center; padding: 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); flex: 0 0 auto; }
   .fp-title { font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; }
@@ -161,7 +144,6 @@
   .fp-item-label { flex: 1 1 auto; font-size: 13px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
   .fp-del { flex: 0 0 auto; background: none; border: none; color: #ffffff; font-size: 14px; cursor: pointer; padding: 0; opacity: 0.6; }
   .fp-del:hover { opacity: 1; color: var(--danger); }
-  .fp-add-row { display: none !important; }
 
   #quick-bm-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 120; display: none; align-items: flex-end; justify-content: center; }
   #quick-bm-overlay.open { display: flex; }
@@ -201,26 +183,9 @@
     <div id="bookmark-bar"></div>
 
     <div id="toolbar-row">
-      <div id="account-switcher">
-        <button id="account-dropdown-btn" title="Switch account">
-          <span id="account-dropdown-label">No accounts</span>
-          <span id="account-dropdown-caret">&#9662;</span>
-        </button>
-      </div>
+      <button class="icon-btn nav-btn" id="btn-back" title="Back" disabled>&#8592;</button>
       <div class="divider-v"></div>
-      
-      <button class="icon-btn" id="tab-add-btn" title="Add account">&#43;</button>
-      
-      <div id="tab-name-input-container">
-        <input type="text" id="tab-name-input" class="tab-name-input" placeholder="Name…" />
-        <button class="icon-btn" id="tab-name-confirm" style="color:var(--accent)">&#10003;</button>
-        <button class="icon-btn danger" id="tab-name-cancel">&#10005;</button>
-      </div>
-
-      <div class="divider-v"></div>
-      <button class="icon-btn" id="btn-back" title="Back" disabled>&#8592;</button>
-      <div class="divider-v"></div>
-      <button class="icon-btn" id="btn-forward" title="Forward" disabled>&#8594;</button>
+      <button class="icon-btn nav-btn" id="btn-forward" title="Forward" disabled>&#8594;</button>
       <div class="divider-v"></div>
 
       <div id="address-wrap">
@@ -253,8 +218,6 @@
     </div>
   </div>
 
-  <div id="account-dropdown-menu"></div>
-  
   <div id="downloads-panel">
     <div class="dl-header">
       <span>Downloads</span>
@@ -291,9 +254,30 @@
   </div>
 </div>
 
-<script>
+<script type="module">
   // =========================================================
-  // Web-only Architecture Replacement for Electron Main API
+  // Import Firebase Modules
+  // =========================================================
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  // Initialize Firebase using the provided configuration
+  const firebaseConfig = {
+      apiKey: "AIzaSyAYHA8Qw3Qw3Qzbyg8MtjrSKcJusNi4VaA6V4",
+      authDomain: "system-data-bf026.firebaseapp.com",
+      databaseURL: "https://system-data-bf026-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "system-data-bf026",
+      storageBucket: "system-data-bf026.firebasestorage.app",
+      messagingSenderId: "718302899022",
+      appId: "1:718302899022:web:f1675dbcc293e138c68c1f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const bookmarksDbRef = ref(db, 'browser_data/bookmarks');
+
+  // =========================================================
+  // Core Variables
   // =========================================================
   const MIN_PERCENT = 10, MAX_PERCENT = 90;
   const rootEl = document.getElementById('split-root');
@@ -303,7 +287,9 @@
 
   let tabs = [];
   let activeTabId = null;
-  let bookmarks = JSON.parse(localStorage.getItem('fastest-browser-bookmarks') || '[]');
+  
+  // Bookmarks are now handled by Firebase Realtime DB
+  let bookmarks = [];
 
   function activeTab() { return tabs.find((t) => t.id === activeTabId) || null; }
   
@@ -322,15 +308,12 @@
     container.className = 'split-child';
     container.style.flex = "1";
     
-    // Iframe instead of Electron <webview>
     const iframe = document.createElement('iframe');
     iframe.src = node.url || START_URL_FALLBACK;
     iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
     
-    // Focus catcher - sits above iframe until clicked
     const focusCatcher = document.createElement('div');
     focusCatcher.className = "focus-catcher";
-    
     focusCatcher.addEventListener('mousedown', () => { setActiveLeaf(node); });
     
     container.appendChild(iframe);
@@ -350,7 +333,6 @@
     tab.activeLeafNode = node;
     node.el.classList.add('pane-active');
     
-    // Update Address bar with current node's URL (Cannot read live URL due to CORS)
     document.getElementById('address-input').value = node.url;
     updateSplitControlsState();
   }
@@ -373,7 +355,7 @@
     let dragging = false;
     resizerEl.addEventListener('mousedown', (e) => {
       dragging = true; resizerEl.classList.add('active');
-      document.body.classList.add('dragging'); // Activate drag overlay
+      document.body.classList.add('dragging'); 
       document.body.style.cursor = splitNode.direction === 'row' ? 'col-resize' : 'row-resize'; e.preventDefault();
     });
     window.addEventListener('mousemove', (e) => {
@@ -417,7 +399,7 @@
     updateSplitControlsState(); setTimeout(() => focusFirstLeaf(sibling), 0); scheduleTabsSave();
   }
 
-  // --- LocalStorage persistence replacing physical FS ---
+  // --- LocalStorage persistence replacing physical FS for TABS ---
   let tabsSaveTimer = null;
   function scheduleTabsSave() { clearTimeout(tabsSaveTimer); tabsSaveTimer = setTimeout(saveTabsToDisk, 400); }
   setInterval(saveTabsToDisk, 10000);
@@ -435,9 +417,23 @@
     } catch (e) {}
   }
   
-  function saveBookmarksToDisk() {
-      localStorage.setItem('fastest-browser-bookmarks', JSON.stringify(bookmarks));
+  // --- FIREBASE SYNC FOR BOOKMARKS ---
+  function saveBookmarksToDatabase() {
+      // Syncs current bookmarks array to Firebase Realtime DB
+      set(bookmarksDbRef, bookmarks);
   }
+
+  // Listen for realtime bookmark updates across devices
+  onValue(bookmarksDbRef, (snapshot) => {
+      const data = snapshot.val();
+      bookmarks = data ? data : [];
+      refreshFolderIndicators();
+      
+      // Live-update the panel if it happens to be open when sync occurs
+      if (folderPanel.classList.contains('open')) {
+          renderFolderList();
+      }
+  });
 
   function buildTree(data, tab) {
     if (!data || data.type === 'leaf') return createLeafNode((data && data.url) || START_URL_FALLBACK, tab);
@@ -471,7 +467,7 @@
     const tab = activeTab(); document.getElementById('btn-close-pane').disabled = !tab || !tab.rootNode || tab.rootNode.type !== 'split';
   }
 
-  // --- Accounts (Tabs) ---
+  // --- Core Session Management ---
   function makeTab(opts) { return { id: opts.id, name: opts.name, savedTree: opts.tree, rootNode: null, containerEl: null, mounted: false, activeLeafNode: null }; }
   
   function mountTab(tab) {
@@ -487,7 +483,7 @@
   function switchTab(id) {
     const tab = tabs.find((t) => t.id === id); if (!tab) return;
     const prev = activeTab(); if (prev && prev.id !== id) parkTab(prev);
-    activeTabId = id; renderAccountSwitcher(); mountTab(tab); updateSplitControlsState(); setTimeout(() => focusFirstLeaf(tab.rootNode), 0); scheduleTabsSave();
+    activeTabId = id; mountTab(tab); updateSplitControlsState(); setTimeout(() => focusFirstLeaf(tab.rootNode), 0); scheduleTabsSave();
   }
 
   function addTab(name) {
@@ -496,70 +492,18 @@
     tabs.push(tab); switchTab(id); saveTabsToDisk();
   }
 
-  function closeTabById(id) {
-    const idx = tabs.findIndex((t) => t.id === id); if (idx === -1) return;
-    const tab = tabs[idx];
-    if (tab.containerEl && tab.containerEl.parentNode) tab.containerEl.parentNode.removeChild(tab.containerEl);
-    tabs.splice(idx, 1);
-    if (tab.id === activeTabId) { activeTabId = null; if (tabs.length > 0) switchTab(tabs[0].id); else showEmptyState(); }
-    renderAccountSwitcher(); saveTabsToDisk();
-  }
-
-  function showEmptyState() {
-    rootEl.innerHTML = '<div class="empty-state">No accounts open.<br>Use the + button to add one.</div>';
-    document.getElementById('address-input').value = "";
-    updateSplitControlsState();
-  }
-
-  // --- Account Switcher Dropdown ---
-  const accountDropdownBtn = document.getElementById('account-dropdown-btn');
-  const accountDropdownLabel = document.getElementById('account-dropdown-label');
-  const accountDropdownMenu = document.getElementById('account-dropdown-menu');
-
-  accountDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); accountDropdownMenu.classList.toggle('open'); accountDropdownBtn.classList.toggle('open'); });
-  document.addEventListener('click', (e) => { if (!accountDropdownMenu.contains(e.target) && e.target !== accountDropdownBtn) { accountDropdownMenu.classList.remove('open'); accountDropdownBtn.classList.remove('open'); } });
-
-  function renderAccountSwitcher() {
-    const active = activeTab(); accountDropdownLabel.textContent = active ? active.name : 'No accounts';
-    accountDropdownMenu.innerHTML = '';
-    if (tabs.length === 0) { accountDropdownMenu.innerHTML = '<div class="account-menu-empty">No accounts yet</div>'; return; }
-    
-    tabs.forEach((tab) => {
-      const item = document.createElement('div'); item.className = 'account-item';
-      item.addEventListener('click', () => { switchTab(tab.id); accountDropdownMenu.classList.remove('open'); accountDropdownBtn.classList.remove('open'); });
-      const name = document.createElement('span'); name.className = 'account-item-name'; name.textContent = tab.name;
-      const close = document.createElement('button'); close.className = 'account-item-close'; close.textContent = '✕';
-      close.addEventListener('click', (e) => { e.stopPropagation(); closeTabById(tab.id); });
-      item.appendChild(name); item.appendChild(close); accountDropdownMenu.appendChild(item);
-    });
-  }
-
-  // --- Add Tab Input UI ---
-  const tabAddBtn = document.getElementById('tab-add-btn');
-  const tabNameInputContainer = document.getElementById('tab-name-input-container');
-  const tabNameInput = document.getElementById('tab-name-input');
-  
-  tabAddBtn.addEventListener('click', () => { tabAddBtn.style.display = 'none'; tabNameInputContainer.style.display = 'flex'; tabNameInput.value = ''; tabNameInput.focus(); });
-  document.getElementById('tab-name-cancel').addEventListener('click', () => { tabNameInputContainer.style.display = 'none'; tabAddBtn.style.display = 'flex'; });
-  document.getElementById('tab-name-confirm').addEventListener('click', () => {
-    const val = tabNameInput.value.trim(); if(val) addTab(val);
-    tabNameInputContainer.style.display = 'none'; tabAddBtn.style.display = 'flex';
-  });
-  tabNameInput.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter') document.getElementById('tab-name-confirm').click();
-    if(e.key === 'Escape') document.getElementById('tab-name-cancel').click();
-  });
-
-
   // --- Initialization ---
   function initApp() {
     let rawState = localStorage.getItem('fastest-browser-tabs');
     let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
     
     tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
-    if (tabs.length === 0) { showEmptyState(); renderAccountSwitcher(); }
-    else switchTab(tabsState.activeTabId && tabs.some(t => t.id === tabsState.activeTabId) ? tabsState.activeTabId : tabs[0].id);
-    refreshFolderIndicators();
+    
+    if (tabs.length === 0) { 
+        addTab('Main Session');
+    } else {
+        switchTab(tabsState.activeTabId && tabs.some(t => t.id === tabsState.activeTabId) ? tabsState.activeTabId : tabs[0].id);
+    }
   }
   
   // --- Navigation & Toolbar ---
@@ -588,7 +532,6 @@
   
   addressInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-go').click(); });
   addressInput.addEventListener('focus', () => addressInput.select());
-
 
   // --- Downloads Panel Setup ---
   const downloadsPanel = document.getElementById('downloads-panel');
@@ -637,9 +580,7 @@
       del.onclick = (ev) => { 
           ev.stopPropagation(); 
           bookmarks.splice(e.idx, 1); 
-          saveBookmarksToDisk(); 
-          refreshFolderIndicators(); 
-          renderFolderList(); 
+          saveBookmarksToDatabase(); // Update Firebase on delete
       };
       
       item.appendChild(del); fpList.appendChild(item);
@@ -673,34 +614,18 @@
       const tab = activeTab();
       if(tab && tab.activeLeafNode) {
           bookmarks.push({ label: qbmNameInput.value.trim() || tab.activeLeafNode.url, url: tab.activeLeafNode.url, folder: qbmSelectedFolder });
-          saveBookmarksToDisk();
-          refreshFolderIndicators();
+          saveBookmarksToDatabase(); // Update Firebase on add
       }
       closeQBM(); 
   };
 
   document.addEventListener('click', (e) => {
-      if (!accountDropdownMenu.contains(e.target) && e.target.id !== 'account-dropdown-btn') accountDropdownMenu.classList.remove('open');
       if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
       if (!downloadsPanel.contains(e.target) && e.target.id !== 'btn-downloads') downloadsPanel.classList.remove('open');
-    });
-  
-    // =========================================================
-    // Iframe PostMessage Router (Wall Panel -> Live TV Bridge)
-    // =========================================================
-    window.addEventListener('message', (event) => {
-        if (event.data && event.data.trinityOS_pair) {
-            const allPanes = document.querySelectorAll('iframe');
-            allPanes.forEach(iframe => {
-                if (iframe.contentWindow !== event.source) {
-                    iframe.contentWindow.postMessage(event.data, '*');
-                }
-            });
-        }
-    });
-  
-    // Start app
-    initApp();
+  });
+
+  // Start app
+  initApp();
 </script>
 </body>
 </html>
