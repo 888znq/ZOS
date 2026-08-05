@@ -43,7 +43,7 @@
   .split-container.row { flex-direction: row; }
   .split-container.column { flex-direction: column; }
   
-  .split-child { display: flex; min-width: 0; min-height: 0; position: relative; background: #050505; }
+  .split-child { display: flex; min-width: 0; min-height: 0; position: relative; background: #050505; overflow: hidden; }
   .split-child::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 10;
     border: 2px solid transparent; transition: border-color 0.12s ease;
@@ -63,7 +63,7 @@
   .split-resizer.vertical:hover::before, .split-resizer.vertical.active::before { height: 100%; }
   .split-resizer.horizontal:hover::before, .split-resizer.horizontal.active::before { width: 100%; }
 
-  iframe { flex: 1; width: 100%; height: 100%; display: flex; border: 0; background: #ffffff; }
+  iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #ffffff; transition: transform 0.08s ease; }
 
   /* Overlay to prevent iframes from stealing mouse events during drag */
   .drag-overlay { position: absolute; inset: 0; z-index: 999; display: none; }
@@ -122,23 +122,16 @@
   #go-star-divider { position: absolute; right: 23px; top: -5.25px; bottom: -5.25px; width: 1px; background: var(--bar-border); pointer-events: none; }
   .divider-v { width: 1px; align-self: stretch; background: var(--bar-border); flex: 0 0 auto; margin: 0 1px; }
 
-  #downloads-wrap { position: relative; }
-  #downloads-badge { position: absolute; top: -2px; right: -2px; background: #ffffff; color: var(--bar-bg); font-size: 7px; font-weight: 700; border-radius: 6px; min-width: 11px; height: 11px; line-height: 11px; text-align: center; padding: 0 2px; display: none; pointer-events: none; }
-
   /* Modals */
-  #folder-panel, #downloads-panel { position: absolute; bottom: 70px; max-height: 60vh; background: var(--bar-bg); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); display: none; flex-direction: column; padding: 6px; z-index: 90; box-sizing: border-box; }
-  #folder-panel { left: 8px; right: auto; width: 220px; max-width: calc(100% - 16px); padding: 0; }
-  #downloads-panel { right: 8px; left: auto; overflow-y: auto; width: 250px; }
-  #folder-panel.open, #downloads-panel.open { display: flex; }
+    #folder-panel { position: absolute; bottom: 70px; max-height: 60vh; background: var(--bar-bg); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); display: none; flex-direction: column; padding: 0; z-index: 90; box-sizing: border-box; left: 8px; right: auto; width: 220px; max-width: calc(100% - 16px); }
+    #folder-panel.open { display: flex; }
 
   .fp-header { display: flex; align-items: center; justify-content: center; padding: 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); flex: 0 0 auto; }
-  .fp-title { font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; }
-  .fp-close { display: none; } 
-  .dl-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--bar-border); flex: 0 0 auto; }
-  .dl-header span { font-size: 13px; font-weight: 700; color: #ffffff; }
+    .fp-title { font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; }
+    .fp-close { display: none; }
   
-  .fp-list { flex: 1 1 auto; min-height: 0; max-height: 250px; overflow-y: auto; padding: 0; }
-  .fp-empty, .dl-empty { padding: 16px 10px; text-align: center; color: var(--text-dim); font-size: 12px; }
+    .fp-list { flex: 1 1 auto; min-height: 0; max-height: 250px; overflow-y: auto; padding: 0; }
+    .fp-empty { padding: 16px 10px; text-align: center; color: var(--text-dim); font-size: 12px; }
   .fp-item { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 0; cursor: pointer; border-bottom: 1px solid transparent; }
   .fp-item:hover { background: rgba(255, 255, 255, 0.05); }
   .fp-item-label { flex: 1 1 auto; font-size: 13px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
@@ -199,17 +192,10 @@
       <div class="divider-v"></div>
       <button class="icon-btn" id="btn-fullscreen" title="Enter fullscreen">&#9974;</button>
       <div class="divider-v"></div>
-      <!-- Zoom functions disabled for raw Web iframe implementation -->
-      <button class="icon-btn" id="btn-zoom-out" title="Zoom out" disabled>&#8722;</button>
-      <div class="divider-v"></div>
-      <button class="icon-btn" id="btn-zoom-in" title="Zoom in" disabled>&#43;</button>
-      <div class="divider-v"></div>
-
-      <div id="downloads-wrap">
-        <button class="icon-btn" id="btn-downloads" title="Downloads">&#8595;<span id="downloads-badge">0</span></button>
-      </div>
-
-      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-zoom-out" title="Zoom out">&#8722;</button>
+            <div class="divider-v"></div>
+            <button class="icon-btn" id="btn-zoom-in" title="Zoom in">&#43;</button>
+            <div class="divider-v"></div>
       <button class="icon-btn" id="btn-split-row" title="Split side by side">&#8646;</button>
       <div class="divider-v"></div>
       <button class="icon-btn" id="btn-split-col" title="Split top/bottom">&#8645;</button>
@@ -218,16 +204,6 @@
     </div>
   </div>
 
-  <div id="downloads-panel">
-    <div class="dl-header">
-      <span>Downloads</span>
-      <button class="dl-clear" id="dl-clear-btn" style="display:none;">Clear</button>
-    </div>
-    <div id="dl-list">
-        <div class="dl-empty">Native downloads tracking requires an OS app.<br>Downloads will happen via your standard browser UI.</div>
-    </div>
-  </div>
-  
   <div id="folder-panel">
     <div class="fp-header">
       <span class="fp-title" id="fp-title">Folder</span>
@@ -294,7 +270,7 @@
   function activeTab() { return tabs.find((t) => t.id === activeTabId) || null; }
   
   // Data structure creation
-  function createLeafNode(url, tab) { return { type: 'leaf', id: 'n'+(++nodeIdCounter), url, tab, parent: null, el: null, iframe: null }; }
+  function createLeafNode(url, tab) { return { type: 'leaf', id: 'n'+(++nodeIdCounter), url, tab, parent: null, el: null, iframe: null, zoom: 1 }; }
   function createSplitNode(direction, first, second) {
     const node = { type: 'split', id: 's'+(++nodeIdCounter), direction, ratio: 50, first, second, parent: null };
     first.parent = node; second.parent = node; return node;
@@ -510,19 +486,56 @@
   const addressInput = document.getElementById('address-input');
   
   function navigateActivePane(url) {
-      const tab = activeTab(); if (!tab || !tab.activeLeafNode) return;
-      let target = url.trim();
-      if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
-      tab.activeLeafNode.url = target;
-      tab.activeLeafNode.iframe.src = target;
-      addressInput.value = target;
-      scheduleTabsSave();
-  }
+        const tab = activeTab(); if (!tab || !tab.activeLeafNode) return;
+        let target = url.trim();
+        if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+        tab.activeLeafNode.url = target;
+        tab.activeLeafNode.iframe.src = target;
+        addressInput.value = target;
+        scheduleTabsSave();
+    }
+  
+    const ZOOM_MIN = 0.5, ZOOM_MAX = 2, ZOOM_STEP = 0.1;
+  
+    function applyZoom(node) {
+        if (!node || !node.iframe) return;
+        const z = node.zoom || 1;
+        const inv = 100 / z;
+        node.iframe.style.width = inv + '%';
+        node.iframe.style.height = inv + '%';
+        node.iframe.style.left = ((100 - inv) / 2) + '%';
+        node.iframe.style.top = ((100 - inv) / 2) + '%';
+        node.iframe.style.transformOrigin = 'center center';
+        node.iframe.style.transform = 'scale(' + z + ')';
+      }
+  
+    let zoomReloadTimer = null;
+      function scheduleZoomReload(node) {
+        clearTimeout(zoomReloadTimer);
+        zoomReloadTimer = setTimeout(() => {
+          if (node && node.iframe && node.url) {
+            node.iframe.src = node.url;
+          }
+        }, 500);
+      }
+    
+      function changeZoom(delta) {
+        const tab = activeTab(); if (!tab || !tab.activeLeafNode) return;
+        const node = tab.activeLeafNode;
+        let z = (node.zoom || 1) + delta;
+        z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+        node.zoom = Math.round(z * 100) / 100;
+        applyZoom(node);
+        scheduleZoomReload(node);
+        scheduleTabsSave();
+      }
 
   document.getElementById('btn-fullscreen').addEventListener('click', () => {
-      if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); document.getElementById('exit-fullscreen-btn').classList.add('visible'); }
-      else if (document.exitFullscreen) { document.exitFullscreen(); document.getElementById('exit-fullscreen-btn').classList.remove('visible'); }
-  });
+        if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); document.getElementById('exit-fullscreen-btn').classList.add('visible'); }
+        else if (document.exitFullscreen) { document.exitFullscreen(); document.getElementById('exit-fullscreen-btn').classList.remove('visible'); }
+    });
+    document.getElementById('btn-zoom-in').addEventListener('click', () => changeZoom(ZOOM_STEP));
+    document.getElementById('btn-zoom-out').addEventListener('click', () => changeZoom(-ZOOM_STEP));
   document.getElementById('exit-fullscreen-btn').addEventListener('click', () => { document.exitFullscreen(); document.getElementById('exit-fullscreen-btn').classList.remove('visible');});
   
   document.getElementById('btn-split-row').addEventListener('click', () => { const t = activeTab(); if(t && t.activeLeafNode) splitPaneNode(t.activeLeafNode, 'row'); });
@@ -532,10 +545,6 @@
   
   addressInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-go').click(); });
   addressInput.addEventListener('focus', () => addressInput.select());
-
-  // --- Downloads Panel Setup ---
-  const downloadsPanel = document.getElementById('downloads-panel');
-  document.getElementById('btn-downloads').addEventListener('click', async (e) => { e.stopPropagation(); downloadsPanel.classList.toggle('open'); });
 
   // --- Bookmarks UI ---
   const FOLDER_KEYS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -620,9 +629,8 @@
   };
 
   document.addEventListener('click', (e) => {
-      if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
-      if (!downloadsPanel.contains(e.target) && e.target.id !== 'btn-downloads') downloadsPanel.classList.remove('open');
-  });
+        if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
+    });
 
   // Start app
   initApp();
