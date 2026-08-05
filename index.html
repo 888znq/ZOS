@@ -311,8 +311,9 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const bookmarksDbRef = ref(db, 'browser_data/bookmarks');
+    const db = getDatabase(app);
+    const bookmarksDbRef = ref(db, 'browser_data/bookmarks');
+    const tabsDbRef = ref(db, 'browser_data/tabs');
 
   // =========================================================
   // Core Variables
@@ -465,11 +466,12 @@
   }
 
   function saveTabsToDisk() {
-    try { 
-        const state = { tabs: tabs.map((t) => ({ id: t.id, name: t.name, tree: t.mounted ? serializeTree(t.rootNode) : t.savedTree })), activeTabId };
-        localStorage.setItem('fastest-browser-tabs', JSON.stringify(state)); 
-    } catch (e) {}
-  }
+      try { 
+          const state = { tabs: tabs.map((t) => ({ id: t.id, name: t.name, tree: t.mounted ? serializeTree(t.rootNode) : t.savedTree })), activeTabId };
+          localStorage.setItem('fastest-browser-tabs', JSON.stringify(state)); 
+          set(tabsDbRef, state);
+      } catch (e) {}
+    }
   
   // --- FIREBASE SYNC FOR BOOKMARKS ---
   function saveBookmarksToDatabase() {
@@ -602,6 +604,13 @@
 
   // --- Initialization ---
     function initApp() {
+      onValue(tabsDbRef, (snapshot) => {
+        const remoteData = snapshot.val();
+        if (remoteData && remoteData.tabs && remoteData.tabs.length > 0) {
+          localStorage.setItem('fastest-browser-tabs', JSON.stringify(remoteData));
+        }
+      }, { onlyOnce: true });
+  
       let rawState = localStorage.getItem('fastest-browser-tabs');
       let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
       
