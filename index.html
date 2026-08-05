@@ -294,10 +294,10 @@
 
 <script type="module">
   // =========================================================
-  // Import Firebase Modules
-  // =========================================================
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    // Import Firebase Modules
+    // =========================================================
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
   // Initialize Firebase using the provided configuration
   const firebaseConfig = {
@@ -455,23 +455,26 @@
   }
 
   // --- LocalStorage persistence replacing physical FS for TABS ---
-  let tabsSaveTimer = null;
-  function scheduleTabsSave() { clearTimeout(tabsSaveTimer); tabsSaveTimer = setTimeout(saveTabsToDisk, 400); }
-  setInterval(saveTabsToDisk, 10000);
-
-  function serializeTree(node) {
-    if (!node) return null;
-    if (node.type === 'leaf') return { type: 'leaf', url: node.url || START_URL_FALLBACK };
-    return { type: 'split', direction: node.direction, ratio: node.ratio, first: serializeTree(node.first), second: serializeTree(node.second) };
-  }
-
-  function saveTabsToDisk() {
-      try { 
-          const state = { tabs: tabs.map((t) => ({ id: t.id, name: t.name, tree: t.mounted ? serializeTree(t.rootNode) : t.savedTree })), activeTabId };
-          localStorage.setItem('fastest-browser-tabs', JSON.stringify(state)); 
-          set(tabsDbRef, state);
-      } catch (e) {}
+    let tabsSaveTimer = null;
+    let isAppBooting = true; // Added safeguard to prevent overwriting cloud DB on fresh device
+  
+    function scheduleTabsSave() { clearTimeout(tabsSaveTimer); tabsSaveTimer = setTimeout(saveTabsToDisk, 400); }
+    setInterval(saveTabsToDisk, 10000);
+  
+    function serializeTree(node) {
+      if (!node) return null;
+      if (node.type === 'leaf') return { type: 'leaf', url: node.url || START_URL_FALLBACK };
+      return { type: 'split', direction: node.direction, ratio: node.ratio, first: serializeTree(node.first), second: serializeTree(node.second) };
     }
+  
+    function saveTabsToDisk() {
+        if (isAppBooting) return; // Wait until cloud data is checked before saving
+        try { 
+            const state = { tabs: tabs.map((t) => ({ id: t.id, name: t.name, tree: t.mounted ? serializeTree(t.rootNode) : t.savedTree })), activeTabId };
+            localStorage.setItem('fastest-browser-tabs', JSON.stringify(state)); 
+            set(tabsDbRef, state);
+        } catch (e) {}
+      }
   
   // --- FIREBASE SYNC FOR BOOKMARKS ---
   function saveBookmarksToDatabase() {
@@ -603,25 +606,30 @@
 
 
   // --- Initialization ---
-    function initApp() {
-      onValue(tabsDbRef, (snapshot) => {
-        const remoteData = snapshot.val();
-        if (remoteData && remoteData.tabs && remoteData.tabs.length > 0) {
-          localStorage.setItem('fastest-browser-tabs', JSON.stringify(remoteData));
-        }
-      }, { onlyOnce: true });
-  
-      let rawState = localStorage.getItem('fastest-browser-tabs');
-      let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
-      
-      tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
-      
-      if (tabs.length === 0) { 
-          addTab('Main Session');
-      } else {
-          switchTab(tabs[0].id); // Always defaults to the primary Main Session
+      function initApp() {
+        // First, block UI creation until we fetch the true cloud state
+        get(tabsDbRef).then((snapshot) => {
+          const remoteData = snapshot.val();
+          if (remoteData && remoteData.tabs && remoteData.tabs.length > 0) {
+            localStorage.setItem('fastest-browser-tabs', JSON.stringify(remoteData));
+          }
+        }).catch((e) => {
+          // Fallback silently if offline
+        }).finally(() => {
+          let rawState = localStorage.getItem('fastest-browser-tabs');
+          let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
+          
+          tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
+          
+          isAppBooting = false; // Now it is safe to save updates back to the cloud
+          
+          if (tabs.length === 0) { 
+              addTab('Main Session');
+          } else {
+              switchTab(tabs[0].id); // Always defaults to the primary Main Session
+          }
+        });
       }
-    }
   
   // --- Navigation & Toolbar ---
   const addressInput = document.getElementById('address-input');
