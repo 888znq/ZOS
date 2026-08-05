@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Fastest Browser (Web Edition)</title>
+<style>
+  /* ===================================================================
+     Base tokens — ported 1:1 from the simulation UI
+     =================================================================== */
+  :root {
+    --bar-bg: #000432;
+    --bar-border: rgba(255, 255, 255, 0.35);
+    --accent: #ffffff;
+    --text: #ffffff;
+    --text-dim: rgba(255, 255, 255, 0.65);
+    --chip-bg: rgba(255, 255, 255, 0.10);
+    --chip-border: rgba(255, 255, 255, 0.35);
+    --danger: #ffffff;
+    --divider-color: rgba(255, 255, 255, 0.2); 
+    --divider-active: #4A90E2;                  
+    --focus-ring: rgba(74, 144, 226, 0.4);      
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    overscroll-behavior: none; background: #05061a;
+    font-family: "Roboto", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  #app-shell {
+    position: relative; width: 100%; height: 100%; display: flex;
+    flex-direction: column; background: var(--bar-bg);
+  }
+
+  #split-root { flex: 1 1 auto; min-height: 0; position: relative; display: flex; background: #0a0a0a; }
+  #tab-pool { display: none; }
+  .tab-pane-root { flex: 1; min-width: 0; min-height: 0; display: flex; width: 100%; height: 100%; }
+
+  .split-container { display: flex; flex: 1; min-width: 0; min-height: 0; width: 100%; height: 100%; }
+  .split-container.row { flex-direction: row; }
+  .split-container.column { flex-direction: column; }
+  
+  .split-child { display: flex; min-width: 0; min-height: 0; position: relative; background: #050505; }
+  .split-child::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 10;
+    border: 2px solid transparent; transition: border-color 0.12s ease;
+  }
+  .split-child.pane-active::after {
+    border-color: var(--focus-ring);
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
+  }
+
+  .split-resizer { flex: 0 0 6px; background: transparent; position: relative; z-index: 5; }
+  .split-resizer.vertical { cursor: col-resize; }
+  .split-resizer.horizontal { cursor: row-resize; }
+  .split-resizer::before { content: ''; position: absolute; background: var(--divider-color); }
+  .split-resizer.vertical::before { left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); }
+  .split-resizer.horizontal::before { top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%); }
+  .split-resizer:hover::before, .split-resizer.active::before { background: var(--divider-active); width: 2px; height: 2px; }
+  .split-resizer.vertical:hover::before, .split-resizer.vertical.active::before { height: 100%; }
+  .split-resizer.horizontal:hover::before, .split-resizer.horizontal.active::before { width: 100%; }
+
+  iframe { flex: 1; width: 100%; height: 100%; display: flex; border: 0; background: #ffffff; }
+
+  /* Overlay to prevent iframes from stealing mouse events during drag */
+  .drag-overlay { position: absolute; inset: 0; z-index: 999; display: none; }
+  body.dragging .drag-overlay { display: block; }
+
+  /* Invisible clickable area to capture focus before sending it to iframe */
+  .focus-catcher { position: absolute; inset: 0; z-index: 1; cursor: pointer; }
+  .pane-active .focus-catcher { display: none; } 
+
+  .empty-state { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255,255,255,0.25); font-size: 13px; text-align: center; }
+
+  #exit-fullscreen-btn {
+    position: absolute; top: 14px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
+    background: #CC18181A; border: 1px solid rgba(255,255,255,0.2); display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 200; padding: 0;
+  }
+  #exit-fullscreen-btn.visible { display: flex; }
+  #exit-fullscreen-btn svg { width: 18px; height: 18px; }
+
+  /* ===================================================================
+     Bottom bar & Toolbar 
+     =================================================================== */
+  #bottom-bar {
+    position: relative; height: 63px; flex: 0 0 auto; display: flex; flex-direction: column;
+    background: var(--bar-bg); border: 1px solid var(--bar-border); box-sizing: border-box; user-select: none; overflow: hidden; transition: height 0.15s ease;
+  }
+
+  #bookmark-bar { flex: 0 0 31.5px; display: flex; flex-wrap: nowrap; align-items: center; gap: 0; padding: 0; box-sizing: border-box; overflow: hidden; border-bottom: none; }
+  .folder-btn {
+    appearance: none; flex: 1 1 0%; min-width: 0; width: 0; height: 100%; padding: 0; margin: 0; margin-left: -1px;
+    border-radius: 0; display: flex; align-items: center; justify-content: center; background: var(--bar-bg);
+    border: 1px solid var(--chip-border); color: var(--text); font-size: 9px; font-weight: 700; font-family: inherit;
+    line-height: 1; cursor: pointer; position: relative; overflow: hidden; white-space: nowrap; user-select: none;
+  }
+  .folder-btn:first-child { margin-left: 0; }
+  .folder-btn:active, .folder-btn.active { background: #ffffff; border-color: #ffffff; color: var(--bar-bg); }
+  .folder-btn.has-bookmarks::after { content: ""; position: absolute; bottom: -1px; right: -1px; width: 4px; height: 4px; border-radius: 50%; background: #ffffff; border: 1px solid var(--bar-bg); }
+
+  #account-switcher { position: relative; display: flex; align-items: center; }
+  #account-dropdown-btn { appearance: none; background: var(--bar-bg); border: 1px solid var(--chip-border); color: var(--text); font-size: 11px; font-family: inherit; border-radius: 5px; height: 21px; padding: 0 6px; display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; transition: 0.1s; }
+  #account-dropdown-btn:active, #account-dropdown-btn.open { background: #ffffff; color: var(--bar-bg); border-color: #ffffff; }
+  #account-dropdown-label { max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+
+  .account-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; color: #ffffff; }
+  .account-item:active { background: rgba(255, 255, 255, 0.05); }
+  .account-item-name { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .account-item-close { color: var(--danger); font-size: 12px; cursor: pointer; padding: 2px; background: none; border: none; }
+  .account-menu-empty { padding: 8px; text-align: center; color: var(--text-dim); font-size: 11px; }
+
+  #tab-name-input-container { display: none; align-items: center; gap: 2px; }
+  .tab-name-input { width: 90px; height: 21px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--chip-border); border-radius: 5px; color: var(--text); font-size: 10px; padding: 0 6px; outline: none; font-family: inherit; box-sizing: border-box; }
+  .tab-name-input:focus { border-color: var(--accent); }
+
+  #toolbar-row { display: flex; align-items: center; gap: 2px; padding: 0 4px; flex: 0 0 31.5px; min-height: 0; box-sizing: border-box; overflow-x: auto; scrollbar-width: none; }
+  #toolbar-row::-webkit-scrollbar { display: none; }
+
+  .icon-btn { appearance: none; flex: 0 0 auto; width: 21px; height: 21px; min-width: 21px; max-width: 21px; padding: 0; margin: 0; box-sizing: border-box; line-height: 1; display: flex; align-items: center; justify-content: center; border-radius: 5px; border: 1px solid transparent; background: transparent; color: var(--text-dim); cursor: pointer; font-size: 11px; position: relative; user-select: none; }
+  .icon-btn:active:not(:disabled) { background: #ffffff; color: var(--bar-bg); border-color: #ffffff; }
+  .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .icon-btn.danger:active:not(:disabled) { background: #ffffff; border-color: #ffffff; color: var(--bar-bg); }
+
+  #btn-fullscreen { display: flex; } 
+  #address-wrap { position: relative; flex: 1 1 auto; min-width: 90px; }
+  #address-input { width: 100%; height: 24px; background: transparent; border: 1px solid transparent; border-radius: 0; color: var(--text); font-size: 10px; padding: 0 50px 0 8px; outline: none; font-family: inherit; box-sizing: border-box; }
+  #address-input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.04); }
+
+  #btn-go, #btn-add-bookmark { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; }
+  #btn-add-bookmark { right: 2px; }
+  #btn-go { right: 24px; font-weight: 700; }
+  #address-bookmark-divider { position: absolute; right: 45px; top: -5.25px; bottom: -5.25px; width: 1px; background: var(--bar-border); pointer-events: none; }
+  #go-star-divider { position: absolute; right: 23px; top: -5.25px; bottom: -5.25px; width: 1px; background: var(--bar-border); pointer-events: none; }
+  .divider-v { width: 1px; align-self: stretch; background: var(--bar-border); flex: 0 0 auto; margin: 0 1px; }
+
+  #downloads-wrap { position: relative; }
+  #downloads-badge { position: absolute; top: -2px; right: -2px; background: #ffffff; color: var(--bar-bg); font-size: 7px; font-weight: 700; border-radius: 6px; min-width: 11px; height: 11px; line-height: 11px; text-align: center; padding: 0 2px; display: none; pointer-events: none; }
+
+  /* Modals */
+  #folder-panel, #downloads-panel, #account-dropdown-menu { position: absolute; bottom: 70px; max-height: 60vh; background: var(--bar-bg); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); display: none; flex-direction: column; padding: 6px; z-index: 90; box-sizing: border-box; }
+  #folder-panel, #account-dropdown-menu { left: 8px; right: auto; }
+  #downloads-panel { right: 8px; left: auto; }
+  #folder-panel { width: 220px; max-width: calc(100% - 16px); padding: 0; }
+  #account-dropdown-menu { min-width: 160px; overflow-y: auto; z-index: 100; }
+  #downloads-panel { overflow-y: auto; width: 250px; }
+  #folder-panel.open, #downloads-panel.open, #account-dropdown-menu.open { display: flex; }
+
+  .fp-header { display: flex; align-items: center; justify-content: center; padding: 12px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.2); flex: 0 0 auto; }
+  .fp-title { font-size: 15px; font-weight: 700; color: #ffffff; text-align: center; }
+  .fp-close { display: none; } 
+  .dl-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--bar-border); flex: 0 0 auto; }
+  .dl-header span { font-size: 13px; font-weight: 700; color: #ffffff; }
+  
+  .fp-list { flex: 1 1 auto; min-height: 0; max-height: 250px; overflow-y: auto; padding: 0; }
+  .fp-empty, .dl-empty { padding: 16px 10px; text-align: center; color: var(--text-dim); font-size: 12px; }
+  .fp-item { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 0; cursor: pointer; border-bottom: 1px solid transparent; }
+  .fp-item:hover { background: rgba(255, 255, 255, 0.05); }
+  .fp-item-label { flex: 1 1 auto; font-size: 13px; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 400; }
+  .fp-del { flex: 0 0 auto; background: none; border: none; color: #ffffff; font-size: 14px; cursor: pointer; padding: 0; opacity: 0.6; }
+  .fp-del:hover { opacity: 1; color: var(--danger); }
+  .fp-add-row { display: none !important; }
+
+  #quick-bm-overlay { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); z-index: 120; display: none; align-items: flex-end; justify-content: center; }
+  #quick-bm-overlay.open { display: flex; }
+  #quick-bm-modal { width: 100%; max-width: 380px; background: var(--bar-bg); border: 1px solid var(--chip-border); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55); padding: 12px; box-sizing: border-box; }
+  .qbm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .qbm-title { font-size: 14px; font-weight: 700; color: #ffffff; }
+  .qbm-close { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; padding: 4px; }
+  .qbm-url { font-size: 11px; color: var(--text-dim); word-break: break-all; margin-bottom: 10px; }
+  .qbm-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  #qbm-name-input { width: 100%; height: 32px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--chip-border); border-radius: 6px; color: var(--text); font-size: 13px; padding: 0 10px; outline: none; font-family: inherit; box-sizing: border-box; margin-bottom: 10px; }
+  #qbm-name-input:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.08); }
+  .qbm-folder-readout { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); margin-bottom: 12px; }
+  .qbm-folder-readout .qbm-folder-value { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--chip-border); background: var(--bar-bg); color: #ffffff; font-size: 11px; font-weight: 700; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+  .qbm-actions { display: flex; gap: 8px; }
+  .qbm-actions button { flex: 1 1 0; height: 34px; border-radius: 8px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: #ffffff; font-size: 13px; font-weight: 600; cursor: pointer; }
+  #qbm-save-btn { background: #ffffff; color: var(--bar-bg); border-color: #ffffff; }
+</style>
+</head>
+<body>
+<div id="app-shell">
+  <!-- Invisible overlay required to prevent iframes stealing drag events during resize -->
+  <div class="drag-overlay"></div>
+  
+  <div id="split-root"></div>
+  <div id="tab-pool"></div>
+
+  <button id="exit-fullscreen-btn" title="Exit fullscreen">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#F2F2F2" d="M3,9 L3,4 L5,4 L5,7 L8,7 L8,9 Z"/>
+      <path fill="#F2F2F2" d="M21,9 L21,4 L19,4 L19,7 L16,7 L16,9 Z"/>
+      <path fill="#F2F2F2" d="M21,15 L21,20 L19,20 L19,17 L16,17 L16,15 Z"/>
+      <path fill="#F2F2F2" d="M3,15 L3,20 L5,20 L5,17 L8,17 L8,15 Z"/>
+    </svg>
+  </button>
+
+  <div id="bottom-bar">
+    <div id="bookmark-bar"></div>
+
+    <div id="toolbar-row">
+      <div id="account-switcher">
+        <button id="account-dropdown-btn" title="Switch account">
+          <span id="account-dropdown-label">No accounts</span>
+          <span id="account-dropdown-caret">&#9662;</span>
+        </button>
+      </div>
+      <div class="divider-v"></div>
+      
+      <button class="icon-btn" id="tab-add-btn" title="Add account">&#43;</button>
+      
+      <div id="tab-name-input-container">
+        <input type="text" id="tab-name-input" class="tab-name-input" placeholder="Name…" />
+        <button class="icon-btn" id="tab-name-confirm" style="color:var(--accent)">&#10003;</button>
+        <button class="icon-btn danger" id="tab-name-cancel">&#10005;</button>
+      </div>
+
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-back" title="Back" disabled>&#8592;</button>
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-forward" title="Forward" disabled>&#8594;</button>
+      <div class="divider-v"></div>
+
+      <div id="address-wrap">
+        <input id="address-input" type="text" placeholder="Enter URL and press Go…" autocomplete="off" spellcheck="false">
+        <button class="icon-btn" id="btn-go" title="Go">Go</button>
+        <div id="go-star-divider"></div>
+        <button class="icon-btn" id="btn-add-bookmark" title="Add bookmark">&#9733;</button>
+        <div id="address-bookmark-divider"></div>
+      </div>
+
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-fullscreen" title="Enter fullscreen">&#9974;</button>
+      <div class="divider-v"></div>
+      <!-- Zoom functions disabled for raw Web iframe implementation -->
+      <button class="icon-btn" id="btn-zoom-out" title="Zoom out" disabled>&#8722;</button>
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-zoom-in" title="Zoom in" disabled>&#43;</button>
+      <div class="divider-v"></div>
+
+      <div id="downloads-wrap">
+        <button class="icon-btn" id="btn-downloads" title="Downloads">&#8595;<span id="downloads-badge">0</span></button>
+      </div>
+
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-split-row" title="Split side by side">&#8646;</button>
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-split-col" title="Split top/bottom">&#8645;</button>
+      <div class="divider-v"></div>
+      <button class="icon-btn danger" id="btn-close-pane" title="Remove this split" disabled>&#10005;</button>
+    </div>
+  </div>
+
+  <div id="account-dropdown-menu"></div>
+  
+  <div id="downloads-panel">
+    <div class="dl-header">
+      <span>Downloads</span>
+      <button class="dl-clear" id="dl-clear-btn" style="display:none;">Clear</button>
+    </div>
+    <div id="dl-list">
+        <div class="dl-empty">Native downloads tracking requires an OS app.<br>Downloads will happen via your standard browser UI.</div>
+    </div>
+  </div>
+  
+  <div id="folder-panel">
+    <div class="fp-header">
+      <span class="fp-title" id="fp-title">Folder</span>
+      <button class="fp-close" id="fp-close-btn" title="Close">&#10005;</button>
+    </div>
+    <div class="fp-list" id="fp-list"></div>
+  </div>
+
+  <div id="quick-bm-overlay">
+    <div id="quick-bm-modal">
+      <div class="qbm-header">
+        <span class="qbm-title">Add Bookmark</span>
+        <button class="qbm-close" id="qbm-close-btn" title="Close">&#10005;</button>
+      </div>
+      <div class="qbm-url" id="qbm-url-preview"></div>
+      <div class="qbm-label">Bookmark name</div>
+      <input id="qbm-name-input" type="text" autocomplete="off" spellcheck="false">
+      <div class="qbm-folder-readout">Saves to folder <span class="qbm-folder-value" id="qbm-folder-value">0</span></div>
+      <div class="qbm-actions">
+        <button id="qbm-cancel-btn">Cancel</button>
+        <button id="qbm-save-btn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // =========================================================
+  // Web-only Architecture Replacement for Electron Main API
+  // =========================================================
+  const MIN_PERCENT = 10, MAX_PERCENT = 90;
+  const rootEl = document.getElementById('split-root');
+  const tabPoolEl = document.getElementById('tab-pool');
+  let nodeIdCounter = 0;
+  const START_URL_FALLBACK = 'https://example.com';
+
+  let tabs = [];
+  let activeTabId = null;
+  let bookmarks = JSON.parse(localStorage.getItem('fastest-browser-bookmarks') || '[]');
+
+  function activeTab() { return tabs.find((t) => t.id === activeTabId) || null; }
+  
+  // Data structure creation
+  function createLeafNode(url, tab) { return { type: 'leaf', id: 'n'+(++nodeIdCounter), url, tab, parent: null, el: null, iframe: null }; }
+  function createSplitNode(direction, first, second) {
+    const node = { type: 'split', id: 's'+(++nodeIdCounter), direction, ratio: 50, first, second, parent: null };
+    first.parent = node; second.parent = node; return node;
+  }
+
+  // --- Rendering engine ---
+  function renderNode(node) { return node.type === 'leaf' ? renderLeaf(node) : renderSplit(node); }
+  
+  function renderLeaf(node) {
+    const container = document.createElement('div');
+    container.className = 'split-child';
+    container.style.flex = "1";
+    
+    // Iframe instead of Electron <webview>
+    const iframe = document.createElement('iframe');
+    iframe.src = node.url || START_URL_FALLBACK;
+    iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups";
+    
+    // Focus catcher - sits above iframe until clicked
+    const focusCatcher = document.createElement('div');
+    focusCatcher.className = "focus-catcher";
+    
+    focusCatcher.addEventListener('mousedown', () => { setActiveLeaf(node); });
+    
+    container.appendChild(iframe);
+    container.appendChild(focusCatcher);
+    
+    node.el = container; 
+    node.iframe = iframe;
+    return container;
+  }
+
+  function setActiveLeaf(node) {
+    if (!node || node.type !== 'leaf') return;
+    const tab = node.tab;
+    if (tab.activeLeafNode && tab.activeLeafNode !== node && tab.activeLeafNode.el) {
+      tab.activeLeafNode.el.classList.remove('pane-active');
+    }
+    tab.activeLeafNode = node;
+    node.el.classList.add('pane-active');
+    
+    // Update Address bar with current node's URL (Cannot read live URL due to CORS)
+    document.getElementById('address-input').value = node.url;
+    updateSplitControlsState();
+  }
+
+  function renderSplit(node) {
+    const container = document.createElement('div'); container.className = 'split-container ' + node.direction;
+    const firstWrap = document.createElement('div'); firstWrap.style.flex = node.ratio + ' 1 0'; firstWrap.style.display = 'flex'; firstWrap.style.position = 'relative'; firstWrap.appendChild(renderNode(node.first));
+    
+    const resizer = document.createElement('div'); resizer.className = 'split-resizer ' + (node.direction === 'row' ? 'vertical' : 'horizontal');
+    attachResizerEvents(resizer, node);
+    
+    const secondWrap = document.createElement('div'); secondWrap.style.flex = (100 - node.ratio) + ' 1 0'; secondWrap.style.display = 'flex'; secondWrap.style.position = 'relative'; secondWrap.appendChild(renderNode(node.second));
+    
+    container.appendChild(firstWrap); container.appendChild(resizer); container.appendChild(secondWrap);
+    node.el = container; node.firstWrap = firstWrap; node.secondWrap = secondWrap; node.resizerEl = resizer;
+    return container;
+  }
+
+  function attachResizerEvents(resizerEl, splitNode) {
+    let dragging = false;
+    resizerEl.addEventListener('mousedown', (e) => {
+      dragging = true; resizerEl.classList.add('active');
+      document.body.classList.add('dragging'); // Activate drag overlay
+      document.body.style.cursor = splitNode.direction === 'row' ? 'col-resize' : 'row-resize'; e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const rect = splitNode.el.getBoundingClientRect();
+      let percent = splitNode.direction === 'row' ? ((e.clientX - rect.left) / rect.width) * 100 : ((e.clientY - rect.top) / rect.height) * 100;
+      percent = Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, percent));
+      splitNode.ratio = percent;
+      splitNode.firstWrap.style.flex = percent + ' 1 0'; splitNode.secondWrap.style.flex = (100 - percent) + ' 1 0';
+    });
+    function stop() {
+      if (!dragging) return;
+      dragging = false; resizerEl.classList.remove('active');
+      document.body.classList.remove('dragging');
+      document.body.style.cursor = ''; scheduleTabsSave();
+    }
+    window.addEventListener('mouseup', stop); window.addEventListener('mouseleave', stop);
+  }
+
+  function focusFirstLeaf(node) {
+    if (!node) return;
+    if (node.type === 'leaf') { setActiveLeaf(node); } else { focusFirstLeaf(node.first); }
+  }
+
+  function closePane(leafNode) {
+    const parent = leafNode.parent; if (!parent) return;
+    const sibling = (parent.first === leafNode) ? parent.second : parent.first;
+    const grandparent = parent.parent; const siblingEl = sibling.el;
+    
+    if (leafNode.iframe) leafNode.iframe.remove();
+    parent.el.remove();
+
+    if (!grandparent) {
+      leafNode.tab.rootNode = sibling; sibling.parent = null;
+      leafNode.tab.containerEl.innerHTML = ''; leafNode.tab.containerEl.appendChild(siblingEl);
+    } else {
+      const slot = (grandparent.first === parent) ? grandparent.firstWrap : grandparent.secondWrap;
+      if (grandparent.first === parent) grandparent.first = sibling; else grandparent.second = sibling;
+      sibling.parent = grandparent; slot.innerHTML = ''; slot.appendChild(siblingEl);
+    }
+    updateSplitControlsState(); setTimeout(() => focusFirstLeaf(sibling), 0); scheduleTabsSave();
+  }
+
+  // --- LocalStorage persistence replacing physical FS ---
+  let tabsSaveTimer = null;
+  function scheduleTabsSave() { clearTimeout(tabsSaveTimer); tabsSaveTimer = setTimeout(saveTabsToDisk, 400); }
+  setInterval(saveTabsToDisk, 10000);
+
+  function serializeTree(node) {
+    if (!node) return null;
+    if (node.type === 'leaf') return { type: 'leaf', url: node.url || START_URL_FALLBACK };
+    return { type: 'split', direction: node.direction, ratio: node.ratio, first: serializeTree(node.first), second: serializeTree(node.second) };
+  }
+
+  function saveTabsToDisk() {
+    try { 
+        const state = { tabs: tabs.map((t) => ({ id: t.id, name: t.name, tree: t.mounted ? serializeTree(t.rootNode) : t.savedTree })), activeTabId };
+        localStorage.setItem('fastest-browser-tabs', JSON.stringify(state)); 
+    } catch (e) {}
+  }
+  
+  function saveBookmarksToDisk() {
+      localStorage.setItem('fastest-browser-bookmarks', JSON.stringify(bookmarks));
+  }
+
+  function buildTree(data, tab) {
+    if (!data || data.type === 'leaf') return createLeafNode((data && data.url) || START_URL_FALLBACK, tab);
+    const node = createSplitNode(data.direction === 'column' ? 'column' : 'row', buildTree(data.first, tab), buildTree(data.second, tab));
+    node.ratio = typeof data.ratio === 'number' ? data.ratio : 50; return node;
+  }
+
+  function splitPaneNode(leafNode, direction) {
+    const tab = leafNode.tab, parent = leafNode.parent, existingEl = leafNode.el;
+    const newLeaf = createLeafNode(START_URL_FALLBACK, tab); const newLeafEl = renderLeaf(newLeaf);
+    const splitNode = createSplitNode(direction, leafNode, newLeaf);
+    const container = document.createElement('div'); container.className = 'split-container ' + direction;
+
+    const firstWrap = document.createElement('div'); firstWrap.style.flex = '50 1 0'; firstWrap.style.display = 'flex'; firstWrap.style.position = 'relative'; firstWrap.appendChild(existingEl);
+    const resizer = document.createElement('div'); resizer.className = 'split-resizer ' + (direction === 'row' ? 'vertical' : 'horizontal'); attachResizerEvents(resizer, splitNode);
+    const secondWrap = document.createElement('div'); secondWrap.style.flex = '50 1 0'; secondWrap.style.display = 'flex'; secondWrap.style.position = 'relative'; secondWrap.appendChild(newLeafEl);
+
+    container.appendChild(firstWrap); container.appendChild(resizer); container.appendChild(secondWrap);
+    splitNode.el = container; splitNode.firstWrap = firstWrap; splitNode.secondWrap = secondWrap; splitNode.resizerEl = resizer;
+
+    if (!parent) { tab.rootNode = splitNode; tab.containerEl.innerHTML = ''; tab.containerEl.appendChild(container); }
+    else {
+      const slot = (parent.first === leafNode) ? parent.firstWrap : parent.secondWrap;
+      if (parent.first === leafNode) parent.first = splitNode; else parent.second = splitNode;
+      splitNode.parent = parent; slot.innerHTML = ''; slot.appendChild(container);
+    }
+    updateSplitControlsState(); setTimeout(() => setActiveLeaf(newLeaf), 0); scheduleTabsSave();
+  }
+
+  function updateSplitControlsState() {
+    const tab = activeTab(); document.getElementById('btn-close-pane').disabled = !tab || !tab.rootNode || tab.rootNode.type !== 'split';
+  }
+
+  // --- Accounts (Tabs) ---
+  function makeTab(opts) { return { id: opts.id, name: opts.name, savedTree: opts.tree, rootNode: null, containerEl: null, mounted: false, activeLeafNode: null }; }
+  
+  function mountTab(tab) {
+    if (!tab.mounted) {
+      tab.rootNode = buildTree(tab.savedTree || { type: 'leaf', url: START_URL_FALLBACK }, tab);
+      tab.containerEl = document.createElement('div'); tab.containerEl.className = 'tab-pane-root'; tab.containerEl.appendChild(renderNode(tab.rootNode)); tab.mounted = true;
+    } else if (tab.containerEl.parentNode === tabPoolEl) tabPoolEl.removeChild(tab.containerEl);
+    rootEl.innerHTML = ''; rootEl.appendChild(tab.containerEl);
+  }
+
+  function parkTab(tab) { if (tab && tab.containerEl && tab.containerEl.parentNode) { tab.containerEl.parentNode.removeChild(tab.containerEl); tabPoolEl.appendChild(tab.containerEl); } }
+
+  function switchTab(id) {
+    const tab = tabs.find((t) => t.id === id); if (!tab) return;
+    const prev = activeTab(); if (prev && prev.id !== id) parkTab(prev);
+    activeTabId = id; renderAccountSwitcher(); mountTab(tab); updateSplitControlsState(); setTimeout(() => focusFirstLeaf(tab.rootNode), 0); scheduleTabsSave();
+  }
+
+  function addTab(name) {
+    const id = 'tab_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    const tab = makeTab({ id, name, tree: { type: 'leaf', url: START_URL_FALLBACK } });
+    tabs.push(tab); switchTab(id); saveTabsToDisk();
+  }
+
+  function closeTabById(id) {
+    const idx = tabs.findIndex((t) => t.id === id); if (idx === -1) return;
+    const tab = tabs[idx];
+    if (tab.containerEl && tab.containerEl.parentNode) tab.containerEl.parentNode.removeChild(tab.containerEl);
+    tabs.splice(idx, 1);
+    if (tab.id === activeTabId) { activeTabId = null; if (tabs.length > 0) switchTab(tabs[0].id); else showEmptyState(); }
+    renderAccountSwitcher(); saveTabsToDisk();
+  }
+
+  function showEmptyState() {
+    rootEl.innerHTML = '<div class="empty-state">No accounts open.<br>Use the + button to add one.</div>';
+    document.getElementById('address-input').value = "";
+    updateSplitControlsState();
+  }
+
+  // --- Account Switcher Dropdown ---
+  const accountDropdownBtn = document.getElementById('account-dropdown-btn');
+  const accountDropdownLabel = document.getElementById('account-dropdown-label');
+  const accountDropdownMenu = document.getElementById('account-dropdown-menu');
+
+  accountDropdownBtn.addEventListener('click', (e) => { e.stopPropagation(); accountDropdownMenu.classList.toggle('open'); accountDropdownBtn.classList.toggle('open'); });
+  document.addEventListener('click', (e) => { if (!accountDropdownMenu.contains(e.target) && e.target !== accountDropdownBtn) { accountDropdownMenu.classList.remove('open'); accountDropdownBtn.classList.remove('open'); } });
+
+  function renderAccountSwitcher() {
+    const active = activeTab(); accountDropdownLabel.textContent = active ? active.name : 'No accounts';
+    accountDropdownMenu.innerHTML = '';
+    if (tabs.length === 0) { accountDropdownMenu.innerHTML = '<div class="account-menu-empty">No accounts yet</div>'; return; }
+    
+    tabs.forEach((tab) => {
+      const item = document.createElement('div'); item.className = 'account-item';
+      item.addEventListener('click', () => { switchTab(tab.id); accountDropdownMenu.classList.remove('open'); accountDropdownBtn.classList.remove('open'); });
+      const name = document.createElement('span'); name.className = 'account-item-name'; name.textContent = tab.name;
+      const close = document.createElement('button'); close.className = 'account-item-close'; close.textContent = '✕';
+      close.addEventListener('click', (e) => { e.stopPropagation(); closeTabById(tab.id); });
+      item.appendChild(name); item.appendChild(close); accountDropdownMenu.appendChild(item);
+    });
+  }
+
+  // --- Add Tab Input UI ---
+  const tabAddBtn = document.getElementById('tab-add-btn');
+  const tabNameInputContainer = document.getElementById('tab-name-input-container');
+  const tabNameInput = document.getElementById('tab-name-input');
+  
+  tabAddBtn.addEventListener('click', () => { tabAddBtn.style.display = 'none'; tabNameInputContainer.style.display = 'flex'; tabNameInput.value = ''; tabNameInput.focus(); });
+  document.getElementById('tab-name-cancel').addEventListener('click', () => { tabNameInputContainer.style.display = 'none'; tabAddBtn.style.display = 'flex'; });
+  document.getElementById('tab-name-confirm').addEventListener('click', () => {
+    const val = tabNameInput.value.trim(); if(val) addTab(val);
+    tabNameInputContainer.style.display = 'none'; tabAddBtn.style.display = 'flex';
+  });
+  tabNameInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') document.getElementById('tab-name-confirm').click();
+    if(e.key === 'Escape') document.getElementById('tab-name-cancel').click();
+  });
+
+
+  // --- Initialization ---
+  function initApp() {
+    let rawState = localStorage.getItem('fastest-browser-tabs');
+    let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
+    
+    tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
+    if (tabs.length === 0) { showEmptyState(); renderAccountSwitcher(); }
+    else switchTab(tabsState.activeTabId && tabs.some(t => t.id === tabsState.activeTabId) ? tabsState.activeTabId : tabs[0].id);
+    refreshFolderIndicators();
+  }
+  
+  // --- Navigation & Toolbar ---
+  const addressInput = document.getElementById('address-input');
+  
+  function navigateActivePane(url) {
+      const tab = activeTab(); if (!tab || !tab.activeLeafNode) return;
+      let target = url.trim();
+      if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+      tab.activeLeafNode.url = target;
+      tab.activeLeafNode.iframe.src = target;
+      addressInput.value = target;
+      scheduleTabsSave();
+  }
+
+  document.getElementById('btn-fullscreen').addEventListener('click', () => {
+      if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); document.getElementById('exit-fullscreen-btn').classList.add('visible'); }
+      else if (document.exitFullscreen) { document.exitFullscreen(); document.getElementById('exit-fullscreen-btn').classList.remove('visible'); }
+  });
+  document.getElementById('exit-fullscreen-btn').addEventListener('click', () => { document.exitFullscreen(); document.getElementById('exit-fullscreen-btn').classList.remove('visible');});
+  
+  document.getElementById('btn-split-row').addEventListener('click', () => { const t = activeTab(); if(t && t.activeLeafNode) splitPaneNode(t.activeLeafNode, 'row'); });
+  document.getElementById('btn-split-col').addEventListener('click', () => { const t = activeTab(); if(t && t.activeLeafNode) splitPaneNode(t.activeLeafNode, 'column'); });
+  document.getElementById('btn-close-pane').addEventListener('click', () => { const t = activeTab(); if(t && t.activeLeafNode) closePane(t.activeLeafNode); });
+  document.getElementById('btn-go').addEventListener('click', () => { if (addressInput.value.trim()) navigateActivePane(addressInput.value); });
+  
+  addressInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('btn-go').click(); });
+  addressInput.addEventListener('focus', () => addressInput.select());
+
+
+  // --- Downloads Panel Setup ---
+  const downloadsPanel = document.getElementById('downloads-panel');
+  document.getElementById('btn-downloads').addEventListener('click', async (e) => { e.stopPropagation(); downloadsPanel.classList.toggle('open'); });
+
+  // --- Bookmarks UI ---
+  const FOLDER_KEYS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const bookmarkBar = document.getElementById('bookmark-bar');
+  const folderPanel = document.getElementById('folder-panel');
+  const fpTitle = document.getElementById('fp-title'), fpList = document.getElementById('fp-list');
+  let activeFolder = null;
+
+  FOLDER_KEYS.forEach(k => {
+    const b = document.createElement('button'); b.className = 'folder-btn'; b.dataset.folder = k; b.textContent = k;
+    b.onclick = (e) => { e.stopPropagation(); activeFolder === k ? closeFolderPanel() : openFolderPanel(k); }; bookmarkBar.appendChild(b);
+  });
+  const fbBtn = (k) => bookmarkBar.querySelector(`.folder-btn[data-folder="${k}"]`);
+  
+  function openFolderPanel(key) {
+    if(activeFolder) fbBtn(activeFolder).classList.remove('active');
+    activeFolder = key; fbBtn(key).classList.add('active');
+    fpTitle.textContent = key;
+    renderFolderList(); folderPanel.classList.add('open'); positionFolderPanel(fbBtn(key));
+  }
+  function closeFolderPanel() { if(activeFolder) fbBtn(activeFolder).classList.remove('active'); activeFolder = null; folderPanel.classList.remove('open'); }
+  document.getElementById('fp-close-btn').onclick = closeFolderPanel;
+
+  function positionFolderPanel(btn) {
+    if(!btn) return;
+    const shellRect = document.getElementById('app-shell').getBoundingClientRect(), btnRect = btn.getBoundingClientRect(), barRect = document.getElementById('bottom-bar').getBoundingClientRect();
+    const btnCenter = (btnRect.left - shellRect.left) + (btnRect.width / 2);
+    const left = Math.max(8, Math.min(btnCenter - 20, shellRect.width - 220 - 8));
+    folderPanel.style.left = left + 'px'; folderPanel.style.bottom = (shellRect.bottom - barRect.top + 8) + 'px';
+  }
+
+  function renderFolderList() {
+    fpList.innerHTML = '';
+    const entries = bookmarks.map((bm, idx) => ({bm, idx})).filter(e => e.bm.folder === activeFolder);
+    if (!entries.length) { fpList.innerHTML = `<div class="fp-empty">No bookmarks in ${activeFolder}</div>`; return; }
+    entries.forEach(e => {
+      const item = document.createElement('div'); item.className = 'fp-item';
+      const lbl = document.createElement('div'); lbl.className = 'fp-item-label'; lbl.textContent = e.bm.label || e.bm.url; item.appendChild(lbl);
+      item.onclick = () => { navigateActivePane(e.bm.url); closeFolderPanel(); };
+      
+      const del = document.createElement('button'); del.className = 'fp-del'; del.textContent = '✕'; 
+      del.onclick = (ev) => { 
+          ev.stopPropagation(); 
+          bookmarks.splice(e.idx, 1); 
+          saveBookmarksToDisk(); 
+          refreshFolderIndicators(); 
+          renderFolderList(); 
+      };
+      
+      item.appendChild(del); fpList.appendChild(item);
+    });
+  }
+  
+  function refreshFolderIndicators() {
+    const seen = {}; bookmarks.forEach(bm => { if(bm.folder) seen[bm.folder] = true; });
+    FOLDER_KEYS.forEach(k => fbBtn(k).classList.toggle('has-bookmarks', !!seen[k]));
+  }
+
+  // Quick Bookmark Modal
+  const quickBmOverlay = document.getElementById('quick-bm-overlay'), qbmNameInput = document.getElementById('qbm-name-input');
+  let qbmSelectedFolder = '0';
+  function deriveName(url) { try { return new URL(url).hostname.replace(/^www\./i,'').split('.')[0].toUpperCase(); } catch { return url; } }
+  function deriveFolder(name) { const c = (name||'').trim().charAt(0).toUpperCase(); return FOLDER_KEYS.includes(c) ? c : '0'; }
+  function setQbmFolder(k) { qbmSelectedFolder = k; document.getElementById('qbm-folder-value').textContent = k; }
+
+  document.getElementById('btn-add-bookmark').onclick = () => {
+    const tab = activeTab();
+    if(!tab || !tab.activeLeafNode || !tab.activeLeafNode.url) return;
+    const currentUrl = tab.activeLeafNode.url;
+    document.getElementById('qbm-url-preview').textContent = currentUrl; qbmNameInput.value = deriveName(currentUrl);
+    setQbmFolder(deriveFolder(qbmNameInput.value)); quickBmOverlay.classList.add('open'); qbmNameInput.focus(); qbmNameInput.select();
+  };
+  const closeQBM = () => quickBmOverlay.classList.remove('open');
+  document.getElementById('qbm-close-btn').onclick = closeQBM; document.getElementById('qbm-cancel-btn').onclick = closeQBM;
+  qbmNameInput.addEventListener('input', () => setQbmFolder(deriveFolder(qbmNameInput.value)));
+  
+  document.getElementById('qbm-save-btn').onclick = () => { 
+      const tab = activeTab();
+      if(tab && tab.activeLeafNode) {
+          bookmarks.push({ label: qbmNameInput.value.trim() || tab.activeLeafNode.url, url: tab.activeLeafNode.url, folder: qbmSelectedFolder });
+          saveBookmarksToDisk();
+          refreshFolderIndicators();
+      }
+      closeQBM(); 
+  };
+
+  document.addEventListener('click', (e) => {
+    if (!accountDropdownMenu.contains(e.target) && e.target.id !== 'account-dropdown-btn') accountDropdownMenu.classList.remove('open');
+    if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
+    if (!downloadsPanel.contains(e.target) && e.target.id !== 'btn-downloads') downloadsPanel.classList.remove('open');
+  });
+
+  // Start app
+  initApp();
+</script>
+</body>
+</html>
