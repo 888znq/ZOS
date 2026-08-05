@@ -680,13 +680,27 @@
   };
 
   document.addEventListener('click', (e) => {
-    if (!accountDropdownMenu.contains(e.target) && e.target.id !== 'account-dropdown-btn') accountDropdownMenu.classList.remove('open');
-    if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
-    if (!downloadsPanel.contains(e.target) && e.target.id !== 'btn-downloads') downloadsPanel.classList.remove('open');
-  });
-
-  // Start app
-  initApp();
+      if (!accountDropdownMenu.contains(e.target) && e.target.id !== 'account-dropdown-btn') accountDropdownMenu.classList.remove('open');
+      if (!folderPanel.contains(e.target) && !e.target.classList.contains('folder-btn')) closeFolderPanel();
+      if (!downloadsPanel.contains(e.target) && e.target.id !== 'btn-downloads') downloadsPanel.classList.remove('open');
+    });
+  
+    // =========================================================
+    // Iframe PostMessage Router (Wall Panel -> Live TV Bridge)
+    // =========================================================
+    window.addEventListener('message', (event) => {
+        if (event.data && event.data.trinityOS_pair) {
+            const allPanes = document.querySelectorAll('iframe');
+            allPanes.forEach(iframe => {
+                if (iframe.contentWindow !== event.source) {
+                    iframe.contentWindow.postMessage(event.data, '*');
+                }
+            });
+        }
+    });
+  
+    // Start app
+    initApp();
 </script>
 </body>
 </html>
