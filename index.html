@@ -342,17 +342,31 @@
   function renderNode(node) { return node.type === 'leaf' ? renderLeaf(node) : renderSplit(node); }
   
   function renderLeaf(node) {
-    const container = document.createElement('div');
-    container.className = 'split-child';
-    container.style.flex = "1";
-    
-    const iframe = document.createElement('iframe');
-    iframe.src = node.url || START_URL_FALLBACK;
-    // Added allow-modals allow-downloads, and clipboard API permissions back
-    iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
-    iframe.allow = "clipboard-read; clipboard-write";
-    
-    const focusCatcher = document.createElement('div');
+      const container = document.createElement('div');
+      container.className = 'split-child';
+      container.style.flex = "1";
+      
+      const iframe = document.createElement('iframe');
+      iframe.src = node.url || START_URL_FALLBACK;
+      // Added allow-modals allow-downloads, and clipboard API permissions back
+      iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
+      iframe.allow = "clipboard-read; clipboard-write";
+  
+      iframe.addEventListener('load', () => {
+        try {
+          if (iframe.contentWindow && iframe.contentWindow.location.href !== 'about:blank') {
+            node.url = iframe.contentWindow.location.href;
+            if (node.tab && node.tab.activeLeafNode === node) {
+              document.getElementById('address-input').value = node.url;
+            }
+            scheduleTabsSave();
+          }
+        } catch (e) {
+          // Fallback catch for cross-origin restricted frames
+        }
+      });
+      
+      const focusCatcher = document.createElement('div');
     focusCatcher.className = "focus-catcher";
     focusCatcher.addEventListener('mousedown', () => { setActiveLeaf(node); });
     
@@ -762,8 +776,13 @@
       }
   });
 
-  // Start app
-  initApp();
-</script>
+  // Instant state persistence on close/refresh
+    window.addEventListener('beforeunload', () => {
+        saveTabsToDisk();
+    });
+  
+    // Start app
+    initApp();
+  </script>
 </body>
 </html>
