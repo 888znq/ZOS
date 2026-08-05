@@ -209,23 +209,23 @@
     <div id="bookmark-bar"></div>
 
     <div id="toolbar-row">
-      <div id="account-switcher">
-        <button id="account-dropdown-btn" title="Switch account">
-          <span id="account-dropdown-label">No accounts</span>
-          <span id="account-dropdown-caret">&#9662;</span>
-        </button>
-      </div>
-      <div class="divider-v"></div>
-      
-      <button class="icon-btn" id="tab-add-btn" title="Add account">&#43;</button>
-      
-      <div id="tab-name-input-container">
-        <input type="text" id="tab-name-input" class="tab-name-input" placeholder="Name…" />
-        <button class="icon-btn" id="tab-name-confirm" style="color:var(--accent)">&#10003;</button>
-        <button class="icon-btn danger" id="tab-name-cancel">&#10005;</button>
-      </div>
-
-      <div class="divider-v"></div>
+            <div id="account-switcher" style="display: none;">
+              <button id="account-dropdown-btn" title="Switch account">
+                <span id="account-dropdown-label">No accounts</span>
+                <span id="account-dropdown-caret">&#9662;</span>
+              </button>
+            </div>
+            <div class="divider-v" style="display: none;"></div>
+            
+            <button class="icon-btn" id="tab-add-btn" title="Add account" style="display: none;">&#43;</button>
+            
+            <div id="tab-name-input-container">
+              <input type="text" id="tab-name-input" class="tab-name-input" placeholder="Name…" />
+              <button class="icon-btn" id="tab-name-confirm" style="color:var(--accent)">&#10003;</button>
+              <button class="icon-btn danger" id="tab-name-cancel">&#10005;</button>
+            </div>
+    
+            <div class="divider-v" style="display: none;"></div>
 
       <button class="icon-btn nav-btn" id="btn-back" title="Back" disabled>&#8592;</button>
       <div class="divider-v"></div>
@@ -587,18 +587,18 @@
 
 
   // --- Initialization ---
-  function initApp() {
-    let rawState = localStorage.getItem('fastest-browser-tabs');
-    let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
-    
-    tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
-    
-    if (tabs.length === 0) { 
-        addTab('Main Session');
-    } else {
-        switchTab(tabsState.activeTabId && tabs.some(t => t.id === tabsState.activeTabId) ? tabsState.activeTabId : tabs[0].id);
+    function initApp() {
+      let rawState = localStorage.getItem('fastest-browser-tabs');
+      let tabsState = rawState ? JSON.parse(rawState) : { tabs: [], activeTabId: null };
+      
+      tabs = (tabsState.tabs || []).map((t) => makeTab(t)); activeTabId = null;
+      
+      if (tabs.length === 0) { 
+          addTab('Main Session');
+      } else {
+          switchTab(tabs[0].id); // Always defaults to the primary Main Session
+      }
     }
-  }
   
   // --- Navigation & Toolbar ---
   const addressInput = document.getElementById('address-input');
