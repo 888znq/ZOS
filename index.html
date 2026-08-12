@@ -53,7 +53,9 @@
     box-shadow: inset 0 0 0 2px var(--focus-ring);
   }
 
-  .split-resizer { flex: 0 0 6px; background: transparent; position: relative; z-index: 5; }
+  /* Resizer track stays visually thin, but gets a wider invisible hit-box
+     (via .touch-hit) so it's easy to grab with a finger on touch devices. */
+  .split-resizer { flex: 0 0 6px; background: transparent; position: relative; z-index: 5; touch-action: none; }
   .split-resizer.vertical { cursor: col-resize; }
   .split-resizer.horizontal { cursor: row-resize; }
   .split-resizer::before { content: ''; position: absolute; background: var(--divider-color); }
@@ -62,6 +64,11 @@
   .split-resizer:hover::before, .split-resizer.active::before { background: var(--divider-active); width: 2px; height: 2px; }
   .split-resizer.vertical:hover::before, .split-resizer.vertical.active::before { height: 100%; }
   .split-resizer.horizontal:hover::before, .split-resizer.horizontal.active::before { width: 100%; }
+
+  /* Enlarged, invisible touch target layered over the thin divider line */
+  .split-resizer .touch-hit { position: absolute; z-index: 6; touch-action: none; }
+  .split-resizer.vertical .touch-hit { left: 50%; top: 0; bottom: 0; width: 28px; transform: translateX(-50%); }
+  .split-resizer.horizontal .touch-hit { top: 50%; left: 0; right: 0; height: 28px; transform: translateY(-50%); }
 
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #ffffff; transition: transform 0.08s ease; }
 
@@ -397,6 +404,7 @@
     const firstWrap = document.createElement('div'); firstWrap.style.flex = node.ratio + ' 1 0'; firstWrap.style.display = 'flex'; firstWrap.style.position = 'relative'; firstWrap.appendChild(renderNode(node.first));
     
     const resizer = document.createElement('div'); resizer.className = 'split-resizer ' + (node.direction === 'row' ? 'vertical' : 'horizontal');
+    const touchHit = document.createElement('div'); touchHit.className = 'touch-hit'; resizer.appendChild(touchHit);
     attachResizerEvents(resizer, node);
     
     const secondWrap = document.createElement('div'); secondWrap.style.flex = (100 - node.ratio) + ' 1 0'; secondWrap.style.display = 'flex'; secondWrap.style.position = 'relative'; secondWrap.appendChild(renderNode(node.second));
@@ -408,26 +416,49 @@
 
   function attachResizerEvents(resizerEl, splitNode) {
     let dragging = false;
-    resizerEl.addEventListener('mousedown', (e) => {
+
+    // Normalize mouse & touch events to a single {x, y} point
+    function getPoint(e) {
+      if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    function start(e) {
       dragging = true; resizerEl.classList.add('active');
-      document.body.classList.add('dragging'); 
-      document.body.style.cursor = splitNode.direction === 'row' ? 'col-resize' : 'row-resize'; e.preventDefault();
-    });
-    window.addEventListener('mousemove', (e) => {
+      document.body.classList.add('dragging');
+      document.body.style.cursor = splitNode.direction === 'row' ? 'col-resize' : 'row-resize';
+      if (e.cancelable) e.preventDefault();
+    }
+
+    function move(e) {
       if (!dragging) return;
+      const p = getPoint(e);
       const rect = splitNode.el.getBoundingClientRect();
-      let percent = splitNode.direction === 'row' ? ((e.clientX - rect.left) / rect.width) * 100 : ((e.clientY - rect.top) / rect.height) * 100;
+      let percent = splitNode.direction === 'row' ? ((p.x - rect.left) / rect.width) * 100 : ((p.y - rect.top) / rect.height) * 100;
       percent = Math.max(MIN_PERCENT, Math.min(MAX_PERCENT, percent));
       splitNode.ratio = percent;
       splitNode.firstWrap.style.flex = percent + ' 1 0'; splitNode.secondWrap.style.flex = (100 - percent) + ' 1 0';
-    });
+      if (e.cancelable) e.preventDefault();
+    }
+
     function stop() {
       if (!dragging) return;
       dragging = false; resizerEl.classList.remove('active');
       document.body.classList.remove('dragging');
       document.body.style.cursor = ''; scheduleTabsSave();
     }
+
+    // Mouse (desktop)
+    resizerEl.addEventListener('mousedown', start);
+    window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', stop); window.addEventListener('mouseleave', stop);
+
+    // Touch (mobile/tablet) — listen on both the visible line and the wider hit target
+    resizerEl.addEventListener('touchstart', start, { passive: false });
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', stop);
+    window.addEventListener('touchcancel', stop);
   }
 
   function focusFirstLeaf(node) {
@@ -507,7 +538,9 @@
     const container = document.createElement('div'); container.className = 'split-container ' + direction;
 
     const firstWrap = document.createElement('div'); firstWrap.style.flex = '50 1 0'; firstWrap.style.display = 'flex'; firstWrap.style.position = 'relative'; firstWrap.appendChild(existingEl);
-    const resizer = document.createElement('div'); resizer.className = 'split-resizer ' + (direction === 'row' ? 'vertical' : 'horizontal'); attachResizerEvents(resizer, splitNode);
+    const resizer = document.createElement('div'); resizer.className = 'split-resizer ' + (direction === 'row' ? 'vertical' : 'horizontal');
+    const touchHit = document.createElement('div'); touchHit.className = 'touch-hit'; resizer.appendChild(touchHit);
+    attachResizerEvents(resizer, splitNode);
     const secondWrap = document.createElement('div'); secondWrap.style.flex = '50 1 0'; secondWrap.style.display = 'flex'; secondWrap.style.position = 'relative'; secondWrap.appendChild(newLeafEl);
 
     container.appendChild(firstWrap); container.appendChild(resizer); container.appendChild(secondWrap);
